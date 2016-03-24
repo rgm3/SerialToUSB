@@ -1,5 +1,14 @@
 LUFA
+lufa-LUFA-151115
 *.o
+*.d
 *.hex
 *.elf
+*.eep
+*.lss
+*.map
+*.sym
+*.bin
+*.zip
+*.swp
 tmp
