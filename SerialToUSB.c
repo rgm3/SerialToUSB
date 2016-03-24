@@ -198,14 +198,8 @@ bool CALLBACK_HID_Device_CreateHIDReport(USB_ClassInfo_HID_Device_t* const HIDIn
         DecodeMouse(s, &button, &x, &y); 
     }
 
-    if (x > 0)
-        MouseReport->X = 1;
-    if (x < 0)
-        MouseReport->X = -1;
-    if (y > 0)
-        MouseReport->Y = 1;
-    if (y < 0)
-        MouseReport->Y = -1;
+    MouseReport->X = x;
+    MouseReport->Y = y;
 
     if (button == 'l')
         MouseReport->Button |= (1 << 0);
