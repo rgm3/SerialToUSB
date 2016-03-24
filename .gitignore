@@ -1,0 +1,5 @@
+LUFA
+*.o
+*.hex
+*.elf
+tmp
