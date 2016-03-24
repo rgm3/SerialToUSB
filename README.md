@@ -26,6 +26,11 @@ Your group may differ depending on your distribution.  For more information, ref
 * git@github.com:abcminiuser/lufa.git
 * http://www.github.com/abcminiuser/lufa/archive/LUFA-151115.zip
 
+## Build Tools
+````
+# on Mac OS X with MacPorts
+sudo port install avrdude avr-gcc avr-libc
+````
 
 # link dump
 * Image credit is CC by-sa 3.0, from lady ada, https://learn.adafruit.com/assets/30449
