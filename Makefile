@@ -31,6 +31,7 @@ COMPILE      = avr-gcc -Wall -Os -ffunction-sections -fdata-sections -DF_CPU=$(F
 # Default target
 all:
 
+
 # Include LUFA build script makefiles
 include $(LUFA_PATH)/Build/lufa_core.mk
 include $(LUFA_PATH)/Build/lufa_sources.mk
@@ -60,4 +61,4 @@ xclean:
 	rm -f *.hex
 
 # Listing of phony targets.
-#.PHONY : all usb upload clean
+.PHONY : usb upload
