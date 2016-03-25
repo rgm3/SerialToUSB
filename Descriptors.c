@@ -53,7 +53,7 @@ const USB_Descriptor_HIDReport_Datatype_t PROGMEM MouseReport[] =
 	 *   Buttons: 3
 	 *   Absolute screen coordinates: false
 	 */
-	HID_DESCRIPTOR_MOUSE(-100, 100, -100, 100, 3, false)
+	HID_DESCRIPTOR_MOUSE(-128, 127, -128, 127, 3, false)
 };
 
 /** Device descriptor structure. This descriptor, located in FLASH memory, describes the overall

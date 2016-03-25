@@ -50,6 +50,18 @@ int main(void)
     GlobalInterruptEnable();
 
     for (;;) {
+        if(RingBuffer_Peek(&USARTtoUSB_Buffer) == 'M') {
+          uint8_t pnpBytesRead = 0;
+          LEDs_TurnOnLEDs(LEDS_ALL_LEDS);
+          do {
+            uint16_t BufferCount = RingBuffer_GetCount(&USARTtoUSB_Buffer);
+            while(BufferCount--) {
+              RingBuffer_Remove(&USARTtoUSB_Buffer);
+              pnpBytesRead++;
+            }
+          } while(pnpBytesRead < 70);
+          LEDs_TurnOffLEDs(LEDS_ALL_LEDS);
+        }
         HID_Device_USBTask(&Mouse_HID_Interface);
         USB_USBTask();
     }
@@ -178,6 +190,7 @@ void EVENT_USB_Device_StartOfFrame(void)
  *
  *  \return Boolean \c true to force the sending of the report, \c false to let the library determine if it needs to be sent
  */
+int hl = 0;
 bool CALLBACK_HID_Device_CreateHIDReport(USB_ClassInfo_HID_Device_t* const HIDInterfaceInfo,
         uint8_t* const ReportID,
         const uint8_t ReportType,
@@ -194,18 +207,11 @@ bool CALLBACK_HID_Device_CreateHIDReport(USB_ClassInfo_HID_Device_t* const HIDIn
         unsigned char data[3];
         for (int i = 0; i <= 2; i++)
         {
+            BufferCount--;
             data[i] = RingBuffer_Remove(&USARTtoUSB_Buffer);
-            if (data[i] == 'M' || data[i] == '3') // Ignore mouse init messages
-            {
-                *ReportSize = 0;
-                return false;
-            }
         }
 
         Decode_MS(MouseReport, data);
-
-        MouseReport->X = CONSTRAIN(MouseReport->X, -10, 10);
-        MouseReport->Y = CONSTRAIN(MouseReport->Y, -10, 10);
 
         *ReportSize = sizeof(USB_MouseReport_Data_t);
         return true;
@@ -258,6 +264,17 @@ void DecodeMouse(unsigned char *s, char *button, int *x, int *y)
     if (*y > 127)
         *y = *y - 256;
 }
+
+/* FIXME When the EasyBall mouse is first plugged in it sends these 70 bytes:
+
+0000000: 4d54 4000 0008 0124 302e 3010 2611 253c  MT@....$0.0.&.%<
+0000010: 1010 1010 1011 1011 3c2d 2f35 3325 3c30  ........<-/53%<0
+0000020: 2e30 1026 1021 3c2d 2923 322f 332f 2634  .0.&.!<-)#2/3/&4
+0000030: 002b 2924 3300 3432 2123 2b22 212c 2c00  .+)$3.42!#+"!,,.
+0000040: 110e 1016 1009                           ......
+
+I have no idea what it means.  Microsoft Trackball...
+*/
 
 void Decode_MS(USB_MouseReport_Data_t *MouseReport, unsigned char *data)
 {
