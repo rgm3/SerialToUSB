@@ -192,7 +192,7 @@ bool CALLBACK_HID_Device_CreateHIDReport(USB_ClassInfo_HID_Device_t* const HIDIn
     if (BufferCount >= 3)
     {
         unsigned char data[3];
-        for (int i = 0; i <=2; i++)
+        for (int i = 0; i <= 2; i++)
         {
             data[i] = RingBuffer_Remove(&USARTtoUSB_Buffer);
             if (data[i] == 'M' || data[i] == '3') // Ignore mouse init messages
@@ -203,6 +203,9 @@ bool CALLBACK_HID_Device_CreateHIDReport(USB_ClassInfo_HID_Device_t* const HIDIn
         }
 
         Decode_MS(MouseReport, data);
+
+        MouseReport->X = CONSTRAIN(MouseReport->X, -10, 10);
+        MouseReport->Y = CONSTRAIN(MouseReport->Y, -10, 10);
 
         *ReportSize = sizeof(USB_MouseReport_Data_t);
         return true;

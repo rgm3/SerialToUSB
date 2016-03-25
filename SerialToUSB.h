@@ -40,6 +40,8 @@
 #define clear_bit(address,bit) (address &= ~(1<<bit))
 #define toggle_bit(address,bit) (address ^= (1<<bit))
 #define check_bit(address,bit) ((address & (1<<bit)) == (1<<bit))
+#define CONSTRAIN(amt,low,high) ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
+
 
 /* Includes: */
 #include <avr/io.h>
