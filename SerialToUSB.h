@@ -75,6 +75,7 @@
 void SetupHardware(void);
 void MySerial_Init(const uint32_t BaudRate);
 void DecodeMouse(unsigned char* s, char* button, int* x, int* y);
+void Decode_MS(USB_MouseReport_Data_t* MouseReport, unsigned char *data);
 
 void EVENT_USB_Device_Connect(void);
 void EVENT_USB_Device_Disconnect(void);
