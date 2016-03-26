@@ -12,7 +12,7 @@ static uint8_t PrevMouseHIDReportBuffer[sizeof(USB_MouseReport_Data_t)];
 static RingBuffer_t USARTtoUSB_Buffer;
 
 /** Underlying data buffer for \ref USARTtoUSB_Buffer, where the stored bytes are located. */
-static uint8_t      USARTtoUSB_Buffer_Data[64];
+static uint8_t      USARTtoUSB_Buffer_Data[128];
 
 /** LUFA HID Class driver interface configuration and state information. This structure is
  *  passed to all HID Class driver functions, so that multiple instances of the same class
@@ -68,6 +68,23 @@ ISR(USART1_RX_vect, ISR_BLOCK)
         RingBuffer_Insert(&USARTtoUSB_Buffer, ReceivedByte);
 }
 
+/**
+ * Flush the read buffer, consuming the mouse initialization message.
+ */
+void Mouse_Init()
+{
+    if(RingBuffer_Peek(&USARTtoUSB_Buffer) == 'M')
+    {
+        LEDs_TurnOnLEDs(LEDS_ALL_LEDS);
+        _delay_ms((70 * 8 / USART_BAUDRATE) + 50);
+        uint16_t BufferCount = RingBuffer_GetCount(&USARTtoUSB_Buffer);
+        while(BufferCount--) {
+            RingBuffer_Remove(&USARTtoUSB_Buffer);
+        }
+        LEDs_TurnOffLEDs(LEDS_ALL_LEDS);
+    }
+}
+
 /** Configures the board hardware and chip peripherals for the demo's functionality. */
 void SetupHardware(void)
 {
@@ -104,12 +121,17 @@ void SetupHardware(void)
  *  \param[in] BaudRate     Serial baud rate, in bits per second.
  */
 void MySerial_Init(const uint32_t BaudRate) {
-    UCSR1B = (1 << RXEN1) | (1 << TXEN1); // Turn on the transmission and reception circuitry
-    UCSR1C = (1 << UCSZ11) | (0 << UCSZ10); // Use 7-bit character sizes
     UBRR1H = (BAUD_PRESCALE >> 8);   // upper 8 bits of baud
     UBRR1L = (BAUD_PRESCALE & 0xff); // lower 8 bits
 
+    UCSR1C = (1 << UCSZ11) | (0 << UCSZ10); // Use 7-bit character sizes
+    UCSR1A = 0; // Not double speed
+    UCSR1B = (1 << RXEN1) | (1 << TXEN1); // Turn on the transmission and reception circuitry
+
     UCSR1B |= (1 << RXCIE1 ); // enable receive complete interrupt
+
+	DDRD  |= (1 << 3);
+	PORTD |= (1 << 2);
 
     /* Start the flush timer so that overflows occur rapidly to push received bytes to the USB interface */
     // TODO rgm: Read the datasheet and learn about this
@@ -173,6 +195,7 @@ void EVENT_USB_Device_StartOfFrame(void)
  *
  *  \return Boolean \c true to force the sending of the report, \c false to let the library determine if it needs to be sent
  */
+int hl = 0;
 bool CALLBACK_HID_Device_CreateHIDReport(USB_ClassInfo_HID_Device_t* const HIDInterfaceInfo,
         uint8_t* const ReportID,
         const uint8_t ReportType,
@@ -181,34 +204,32 @@ bool CALLBACK_HID_Device_CreateHIDReport(USB_ClassInfo_HID_Device_t* const HIDIn
 {
     USB_MouseReport_Data_t* MouseReport = (USB_MouseReport_Data_t*)ReportData;
 
-    char button = 0;
-    int x = 0;
-    int y = 0; 
-
     // Read the 3-byte mouse data packet from the serial buffer
     uint16_t BufferCount = RingBuffer_GetCount(&USARTtoUSB_Buffer);
+    
     if (BufferCount >= 3)
     {
-        unsigned char s[3];
-        for (int i = 0; i <=2; i++)
+        unsigned char data[3];
+        for (int i = 0; i <= 2; i++)
         {
-            s[i] = RingBuffer_Remove(&USARTtoUSB_Buffer);
+            if (RingBuffer_Peek(&USARTtoUSB_Buffer) == 'M')
+            {
+                Mouse_Init();
+                break;
+            }
+
+            BufferCount--;
+            data[i] = RingBuffer_Remove(&USARTtoUSB_Buffer);
         }
 
-        DecodeMouse(s, &button, &x, &y); 
+        Decode_MS(MouseReport, data);
+
+        *ReportSize = sizeof(USB_MouseReport_Data_t);
+        return true;
     }
 
-    MouseReport->X = x;
-    MouseReport->Y = y;
-
-    if (button == 'l')
-        MouseReport->Button |= (1 << 0);
-
-    if (button == 'r')
-        MouseReport->Button |= (1 << 1);
-
-    *ReportSize = sizeof(USB_MouseReport_Data_t);
-    return true;
+    *ReportSize = 0;
+    return false;
 }
 
 /** HID class driver callback function for the processing of HID reports from the host.
@@ -255,4 +276,62 @@ void DecodeMouse(unsigned char *s, char *button, int *x, int *y)
         *y = *y - 256;
 }
 
-// vim: noai:ts=4:sw=4
+/* FIXME When the EasyBall mouse is first plugged in it sends these 70 bytes:
+
+0000000: 4d54 4000 0008 0124 302e 3010 2611 253c  MT@....$0.0.&.%<
+0000010: 1010 1010 1011 1011 3c2d 2f35 3325 3c30  ........<-/53%<0
+0000020: 2e30 1026 1021 3c2d 2923 322f 332f 2634  .0.&.!<-)#2/3/&4
+0000030: 002b 2924 3300 3432 2123 2b22 212c 2c00  .+)$3.42!#+"!,,.
+0000040: 110e 1016 1009                           ......
+
+I have no idea what it means.  Microsoft Trackball...
+*/
+
+void Decode_MS(USB_MouseReport_Data_t *MouseReport, unsigned char *data)
+{
+   // some devices report a change of middle-button state by
+   // repeating the current button state  (patch by Mark Lord)
+   static unsigned char prev=0;
+   MouseReport->Button = 0;
+
+   if (data[0] == 0x40 && !(prev|data[1]|data[2])) {
+      MouseReport->Button |= (1 << 2);  //GPM_B_MIDDLE); // third button on MS compatible mouse 
+   }
+   else {
+      /* GPM uses bits in the opposite order:
+        gpmleft   = 4  100
+        gpmmiddle = 2  010
+        gpmright =  1  001
+        none     =     000
+      */
+      MouseReport->Button = ((data[0] & 0x20) >> 5) | ((data[0] & 0x10) >> 3);
+   }
+   prev = MouseReport->Button;
+   MouseReport->X=      (signed char)(((data[0] & 0x03) << 6) | (data[1] & 0x3F));
+   MouseReport->Y=      (signed char)(((data[0] & 0x0C) << 4) | (data[2] & 0x3F));
+}
+
+// from gpm mice.c
+/*
+static int M_ms(Gpm_Event *state,  unsigned char *data)
+{
+    // some devices report a change of middle-button state by
+    // repeating the current button state  (patch by Mark Lord)
+   static unsigned char prev=0;
+
+   if (data[0] == 0x40 && !(prev|data[1]|data[2]))
+      state->buttons = GPM_B_MIDDLE; // third button on MS compatible mouse 
+   else
+      state->buttons= ((data[0] & 0x20) >> 3) | ((data[0] & 0x10) >> 4);
+   prev = state->buttons;
+   state->dx=      (signed char)(((data[0] & 0x03) << 6) | (data[1] & 0x3F));
+   state->dy=      (signed char)(((data[0] & 0x0C) << 4) | (data[2] & 0x3F));
+
+   return 0;
+}
+*/
+
+
+
+
+// vim: noai:ts=4:sw=4:expandtab

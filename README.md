@@ -1,5 +1,12 @@
 # Serial mouse to USB HID
 
+The goal is to resurrect a beloved Microsoft EasyBall trackball ([vid][1]), enabling its use
+with anything that understands USB HID without configuration or drivers.  Even works on Android
+phones, if you've got a USB OTG cable.
+
+[1]: https://www.dropbox.com/sc/ofrfyzh1wog5gd7/AAAw4_ZpiT6ACZIX_4lHUmnla "EasyBall sending data"
+
+
 # Programming the Adafruit ATmega32u4 breakout
 
 ## Stop Linux from probing the CDC device (bootloader)
