@@ -50,18 +50,6 @@ int main(void)
     GlobalInterruptEnable();
 
     for (;;) {
-        if(RingBuffer_Peek(&USARTtoUSB_Buffer) == 'M') {
-          uint8_t pnpBytesRead = 0;
-          LEDs_TurnOnLEDs(LEDS_ALL_LEDS);
-          do {
-            uint16_t BufferCount = RingBuffer_GetCount(&USARTtoUSB_Buffer);
-            while(BufferCount--) {
-              RingBuffer_Remove(&USARTtoUSB_Buffer);
-              pnpBytesRead++;
-            }
-          } while(pnpBytesRead < 70);
-          LEDs_TurnOffLEDs(LEDS_ALL_LEDS);
-        }
         HID_Device_USBTask(&Mouse_HID_Interface);
         USB_USBTask();
     }
@@ -78,6 +66,23 @@ ISR(USART1_RX_vect, ISR_BLOCK)
 
     if ((USB_DeviceState == DEVICE_STATE_Configured) && !(RingBuffer_IsFull(&USARTtoUSB_Buffer)))
         RingBuffer_Insert(&USARTtoUSB_Buffer, ReceivedByte);
+}
+
+/**
+ * Flush the read buffer, consuming the mouse initialization message.
+ */
+void Mouse_Init()
+{
+    if(RingBuffer_Peek(&USARTtoUSB_Buffer) == 'M')
+    {
+        LEDs_TurnOnLEDs(LEDS_ALL_LEDS);
+        _delay_ms((70 * 8 / USART_BAUDRATE) + 50);
+        uint16_t BufferCount = RingBuffer_GetCount(&USARTtoUSB_Buffer);
+        while(BufferCount--) {
+            RingBuffer_Remove(&USARTtoUSB_Buffer);
+        }
+        LEDs_TurnOffLEDs(LEDS_ALL_LEDS);
+    }
 }
 
 /** Configures the board hardware and chip peripherals for the demo's functionality. */
@@ -207,6 +212,12 @@ bool CALLBACK_HID_Device_CreateHIDReport(USB_ClassInfo_HID_Device_t* const HIDIn
         unsigned char data[3];
         for (int i = 0; i <= 2; i++)
         {
+            if (RingBuffer_Peek(&USARTtoUSB_Buffer) == 'M')
+            {
+                Mouse_Init();
+                break;
+            }
+
             BufferCount--;
             data[i] = RingBuffer_Remove(&USARTtoUSB_Buffer);
         }
